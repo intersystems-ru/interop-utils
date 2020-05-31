@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="iscru.util.FunctionSet">
+<Description>
+Functions that can be used within business rules.</Description>
+<Abstract>1</Abstract>
+<Super>iscru.util.StreamUtils,Ens.Rule.FunctionSet</Super>
+<TimeCreated>65526,6382.093183</TimeCreated>
+</Class>
+</Export>

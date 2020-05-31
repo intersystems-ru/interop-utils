@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="iscru.util.StreamUtils">
+<Description>
+A container class for stream-related utilities.</Description>
+<Abstract>1</Abstract>
+<TimeCreated>65531,5690.351893</TimeCreated>
+
+<Parameter name="ppgROOT">
+<Description>
+Process-private global where parsed patterns get cached to (if requested)</Description>
+<Default>^||iscru.util.StreamUtils</Default>
+</Parameter>
+
+<Method name="streamLike">
+<Description><![CDATA[
+Tests if the given stream's content satisfies a SQL Like comparison with the given </var>pattern</var> string.
+In SQL Like patterns, % matches 0 or more characters, and _ matches any single character.
+Note that an <var>escape</var> character can be specified, e.g. pattern="#%SYSVAR_#_%" with escape="#" to match any value string that starts with "%SYSVAR" followed by any single character, an underscore, and anything else.<br/>
+<var>streamRefOrOid</var> can be either a stream reference or a stream OID.
+If <var>cacheToPPG</var> is 1 then a process-private global is used for caching parsed patterns; this is useful when the same pattern is applied many times, e.g. WHERE clause of a SQL query.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>streamRefOrOid:%Stream.Object,pattern:%String,escape:%String(MAXLEN=1)="",caseInsensitive:%Boolean=$$$YES,cacheToPPG:%Boolean=$$$NO</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<SqlProc>1</SqlProc>
+<Implementation><![CDATA[
+	if (pattern = "") $$$ThrowStatus($$$ERROR($$$InvalidArgument))
+	if caseInsensitive set pattern = $zcvt(pattern, "L")
+	
+	set escape = $extract(escape, 1)
+	if (escape '= "")
+	{
+		if caseInsensitive && (escape '= $zcvt(escape, "L")) $$$ThrowStatus($$$ERROR($$$GeneralError, "Escape character " _ escape _ " is not supported in case insensitive mode"))
+		if (escape = "%") || (escape = "_") $$$ThrowStatus($$$ERROR($$$GeneralError, "Escape character " _ escape _ " is not supported"))
+	}
+	
+	#dim stream As %Stream.Object = streamRefOrOid
+	if '$isObject(stream)
+	{
+		// assume we've got a stream OID
+		#dim sc As %Status = $$$OK
+		set stream = ##class(%Stream.Object).%Open(streamRefOrOid,, .sc)
+		$$$ThrowOnError(sc)
+	}
+	else
+	{
+		do stream.Rewind()
+	}
+
+	#dim patternPartsList As %List = ""
+	if cacheToPPG && $data(@..#ppgROOT@(pattern, "\" _ escape))
+	{
+		// use cached list from PPG
+		set patternPartsList = @..#ppgROOT@(pattern, "\" _ escape)
+	}
+	else
+	{
+		// split pattern into a list	
+		if (escape = "")
+		{
+			// simple case: no escape char specified
+			set patternPartsList = $listFromString(pattern, "%")
+		}
+		else
+		{
+			#dim prevP As %Integer = 1
+			#dim p As %Integer = $find(pattern, "%")
+			while (p > 0)
+			{
+				if (p = (prevP + 1))
+				{
+					set patternPartsList = patternPartsList _ $lb("")
+					set prevP = p
+				}
+				else
+				{
+					#dim subPattern As %String = $extract(pattern, prevP, p - 2)
+					if '..endsWithEscape(subPattern, escape)
+					{
+						set patternPartsList = patternPartsList _ $lb(subPattern)
+						set prevP = p
+					}
+				}
+				
+				set p = $find(pattern, "%", p)
+			}
+			
+			// last piece of the pattern
+			set patternPartsList = patternPartsList _ $lb($extract(pattern, prevP, *))
+		}
+		
+		// save list to PPG (if needed)
+		if cacheToPPG set @..#ppgROOT@(pattern, "\" _ escape) = patternPartsList
+	}
+	
+	#dim negative As %Boolean = $$$NO
+	#dim currentPos As %Integer = 1
+	#dim patternPartsCount As %Integer = $listlength(patternPartsList)
+	#dim pointer As %Integer = 0
+	#dim i As %Integer = 0
+	set subPattern = ""
+	while $listnext(patternPartsList, pointer, subPattern)
+	{
+		set i = i + 1
+		
+		// the first character of the pattern is %, or there are repeating %
+		if (subPattern = "") continue
+		
+		#dim len As %Integer = $length(..removeEscape(subPattern, escape)) 
+
+		if (i = 1)
+		{
+			// if we are here, then the pattern starts with something other than %
+			#dim substr As %String = stream.Read(.len)
+			if caseInsensitive && (substr '= "") set substr = $zcvt(substr, "L")
+			if (len < 1) || (0 = ..find(substr, subPattern,, escape, cacheToPPG))
+			{
+				set negative = $$$YES
+				quit
+			}
+			
+			set currentPos = len + 1
+		}
+		else
+		{
+			#dim tmpstr As %String
+			#dim pos As %Integer = ..findInStream(stream, subPattern, escape, .tmpstr, caseInsensitive, cacheToPPG)
+			if (pos = -1)
+			{
+				set negative = $$$YES
+				quit
+			}
+			
+			set currentPos = currentPos + pos - 1 + len
+			
+			if (i = patternPartsCount) && (currentPos < (stream.Size + 1))
+			{
+				// if we are here, then the pattern ends with something other than %
+				// and there are extra characters in the stream after the last piece of the pattern
+				set negative = $$$YES
+				quit
+			}
+		}
+		
+		//w "currentPos=" _ currentPos,!
+	}
+	
+	quit 'negative
+]]></Implementation>
+</Method>
+
+<Method name="endsWithEscape">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String,escape:%String</FormalSpec>
+<Private>1</Private>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set escape = $extract(escape, 1)
+	if (escape = "") || (str '[ escape) quit $$$NO
+	
+	quit ($extract($replace(str, escape_escape, ""), *) = escape)
+]]></Implementation>
+</Method>
+
+<Method name="removeEscape">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String,escape:%String=""</FormalSpec>
+<Private>1</Private>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set escape = $extract(escape, 1)
+	if (escape = "") || (str '[ escape) quit str
+	
+	#dim list As %List = $listFromString(str, escape_escape)
+	#dim result As %String = ""
+	#dim pointer As %Integer = 0
+	#dim item As %String = ""
+	while $listnext(list, pointer, item)
+	{
+		if (result '= "") set result = result _ escape
+		set result = result _ $replace(item, escape, "")
+	}
+	
+	quit result
+]]></Implementation>
+</Method>
+
+<Method name="findInStream">
+<Description>
+Analogous to ##class(%Stream.Object).FindAt(-1, ...)
+Pattern argument supports underscore that matches any single character.
+Escape argument can contain a character which is used to escape underscores within the pattern.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[stream:%Stream.Object,pattern:%String,escape:%String(MAXLEN=1)="",&tmpstr:%String="",caseInsensitive:%Boolean=$$$NO,cacheToPPG:%Boolean=$$$NO]]></FormalSpec>
+<Private>1</Private>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	if caseInsensitive set pattern = $zcvt(pattern, "L")
+	
+	set escape = $extract(escape, 1)
+	if (escape '= "") && caseInsensitive && (escape '= $zcvt(escape, "L")) $$$ThrowStatus($$$ERROR($$$GeneralError, "Escape character " _ escape _ " is not supported in case insensitive mode"))
+	
+	#dim find As %Integer = 0
+	#dim patternlen As %Integer = $length(..removeEscape(pattern, escape))
+	#dim position As %Integer = 1
+	
+	if ($get(tmpstr) '= "")
+	{
+		set find = ..find(tmpstr, pattern,, escape, cacheToPPG)
+		if find
+		{
+			set tmpstr = $extract(tmpstr, find, *)
+			quit position + find - patternlen - 1
+		}
+		else 
+		{
+			set position = position + $length(tmpstr) - patternlen + 1
+		}
+	}
+	
+	while 'stream.AtEnd
+	{
+		#dim tmp = stream.Read(20000)
+		if caseInsensitive set tmp = $zcvt(tmp, "L")
+		set tmpstr = $extract(tmpstr, * - patternlen + 2, *) _ tmp
+		set find = ..find(tmpstr, pattern,, escape, cacheToPPG)
+		if find
+		{
+			set tmpstr = $extract(tmpstr, find, *)
+			quit
+		}
+		set position = position + $length(tmpstr) - patternlen + 1
+	}
+
+	if find
+	{
+		quit position + find - patternlen - 1
+	}
+	else
+	{
+		quit -1
+	}
+]]></Implementation>
+</Method>
+
+<Method name="find">
+<Description>
+Same as $find() plus support for patterns containing underscore that matches any single character.
+If substringOrPattern is found, this method returns the integer position of the first character following substringOrPattern.
+If substringOrPattern is not found then a value of 0 is returned.
+Escape argument can contain a character which is used to escape underscores within substringOrPattern.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String,substringOrPattern:%String,position:%Integer=1,escape:%String(MAXLEN=1)="",cacheToPPG:%Boolean=$$$NO</FormalSpec>
+<Private>1</Private>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	if (position > $length(str)) $$$ThrowStatus($$$ERROR($$$GeneralError, "Invalid position"))
+	
+	set escape = $extract(escape, 1)
+	if (escape = "_") $$$ThrowStatus($$$ERROR($$$InvalidArgument))
+	
+	if (substringOrPattern '[ "_")
+	{
+		// no underscores --> use $find
+		// remove escape char if specified
+		quit $find(str, ..removeEscape(substringOrPattern, escape), position)
+	}
+	
+	if ($translate(substringOrPattern, "_", "") = "")
+	{
+		// a special case of all underscores pattern
+		// find any string which length equals substringOrPattern's length
+		#dim len As %Integer = $length(substringOrPattern)
+		quit $select(len <= ($length(str) - position + 1):position + len, 1:0)
+	}
+	
+	#dim firstNonEmptyPart As %String = ""
+	#dim firstNonEmptyPartNum As %Integer = 0
+	#dim pattern As %String = ""
+	
+	if cacheToPPG && $data(@..#ppgROOT@(substringOrPattern, "\" _ escape, "pattern"))
+	{
+		// use cached info from PPG
+		set firstNonEmptyPart = @..#ppgROOT@(substringOrPattern, "\" _ escape, "part")
+		set firstNonEmptyPartNum = @..#ppgROOT@(substringOrPattern, "\" _ escape, "partNum")
+		set pattern = @..#ppgROOT@(substringOrPattern, "\" _ escape, "pattern")
+	}
+	else
+	{
+		do ..findParseInternal(substringOrPattern, escape, .firstNonEmptyPart, .firstNonEmptyPartNum, .pattern)
+		//w pattern,":",str?@pattern,!
+		
+		if cacheToPPG
+		{
+			// save info to PPG
+			set @..#ppgROOT@(substringOrPattern, "\" _ escape, "part") = firstNonEmptyPart
+			set @..#ppgROOT@(substringOrPattern, "\" _ escape, "partNum") = firstNonEmptyPartNum
+			set @..#ppgROOT@(substringOrPattern, "\" _ escape, "pattern") = pattern
+		}
+	}
+	
+	#dim substringOrPatternLen As %Integer = $length(..removeEscape(substringOrPattern, escape))
+	#dim firstNonEmptyPartLen As %Integer = $length(firstNonEmptyPart)
+	
+	// loop through all occurencies of firstNonEmptyPart within str
+	#dim pos As %Integer = $find(str, firstNonEmptyPart, position + firstNonEmptyPartNum - 1)
+	while (pos > 0)
+	{
+		#dim start As %Integer = pos - firstNonEmptyPartLen - firstNonEmptyPartNum + 1
+		#dim substr As %String = $extract(str, start, start + substringOrPatternLen - 1)
+
+		if substr?@pattern
+		{
+			set pos = start + substringOrPatternLen
+			quit
+		}
+		
+		set pos = $find(str, firstNonEmptyPart, pos)
+	}
+	
+	quit pos
+]]></Implementation>
+</Method>
+
+<Method name="findParseInternal">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>substringOrPattern:%String,escape:%String(MAXLEN=1),*firstNonEmptyPart:%String,*firstNonEmptyPartNum:%Integer,*pattern:%String</FormalSpec>
+<Private>1</Private>
+<Implementation><![CDATA[
+	set firstNonEmptyPartNum = 0
+	set firstNonEmptyPart = ""
+	set pattern = ""
+	
+	// split substringOrPattern into a list
+	#dim patternPartsList As %List = ""
+	if (escape = "")
+	{
+		// simple case: no escape char specified
+		set patternPartsList = $listFromString(substringOrPattern, "_")
+	}
+	else
+	{
+		#dim prevP As %Integer = 1
+		#dim p As %Integer = $find(substringOrPattern, "_")
+		while (p > 0)
+		{
+			if (p = (prevP + 1))
+			{
+				set patternPartsList = patternPartsList _ $lb("")
+				set prevP = p
+			}
+			else
+			{
+				#dim subPattern As %String = $extract(substringOrPattern, prevP, p - 2)
+				if '..endsWithEscape(subPattern, escape)
+				{
+					set patternPartsList = patternPartsList _ $lb(..removeEscape(subPattern, escape))
+					set prevP = p
+				}
+			}
+			
+			set p = $find(substringOrPattern, "_", p)
+		}
+		
+		// last piece of the pattern
+		set patternPartsList = patternPartsList _ $lb(..removeEscape($extract(substringOrPattern, prevP, *), escape))
+	}
+
+	// construct a pattern to be used with ? operator
+	//   and find the first non-empty part of the original pattern
+	#dim pointer As %Integer = 0
+	#dim item As %String = ""
+	#dim i As %Integer = 0
+	while $listnext(patternPartsList, pointer, item)
+	{
+		set i = i + 1
+		if (firstNonEmptyPartNum = 0) && (item '= "")
+		{
+			set firstNonEmptyPartNum = i
+			set firstNonEmptyPart = item
+		}
+
+		if (i > 1) set pattern = pattern _ "1E"
+		if (item '= "") set pattern = pattern _ "1""" _ $replace(item, """", """""") _ """"
+	}
+]]></Implementation>
+</Method>
+</Class>
+</Export>
