@@ -1,29 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Export generator="Cache" version="25">
-<Class name="iscru.util.StreamUtils">
-<Description>
-A container class for stream-related utilities.</Description>
-<Abstract>1</Abstract>
-<TimeCreated>65531,5690.351893</TimeCreated>
+/// A container class for stream-related utilities.
+Class iscru.util.StreamUtils [ Abstract ]
+{
 
-<Parameter name="ppgROOT">
-<Description>
-Process-private global where parsed patterns get cached to (if requested)</Description>
-<Default>^||iscru.util.StreamUtils</Default>
-</Parameter>
+/// Process-private global where parsed patterns get cached to (if requested)
+Parameter ppgROOT = "^||iscru.util.StreamUtils";
 
-<Method name="streamLike">
-<Description><![CDATA[
-Tests if the given stream's content satisfies a SQL Like comparison with the given </var>pattern</var> string.
-In SQL Like patterns, % matches 0 or more characters, and _ matches any single character.
-Note that an <var>escape</var> character can be specified, e.g. pattern="#%SYSVAR_#_%" with escape="#" to match any value string that starts with "%SYSVAR" followed by any single character, an underscore, and anything else.<br/>
-<var>streamRefOrOid</var> can be either a stream reference or a stream OID.
-If <var>cacheToPPG</var> is 1 then a process-private global is used for caching parsed patterns; this is useful when the same pattern is applied many times, e.g. WHERE clause of a SQL query.]]></Description>
-<ClassMethod>1</ClassMethod>
-<FormalSpec>streamRefOrOid:%Stream.Object,pattern:%String,escape:%String(MAXLEN=1)="",caseInsensitive:%Boolean=$$$YES,cacheToPPG:%Boolean=$$$NO</FormalSpec>
-<ReturnType>%Boolean</ReturnType>
-<SqlProc>1</SqlProc>
-<Implementation><![CDATA[
+/// Tests if the given stream's content satisfies a SQL Like comparison with the given </var>pattern</var> string.
+/// In SQL Like patterns, % matches 0 or more characters, and _ matches any single character.
+/// Note that an <var>escape</var> character can be specified, e.g. pattern="#%SYSVAR_#_%" with escape="#" to match any value string that starts with "%SYSVAR" followed by any single character, an underscore, and anything else.<br/>
+/// <var>streamRefOrOid</var> can be either a stream reference or a stream OID.
+/// If <var>cacheToPPG</var> is 1 then a process-private global is used for caching parsed patterns; this is useful when the same pattern is applied many times, e.g. WHERE clause of a SQL query.
+ClassMethod streamLike(streamRefOrOid As %Stream.Object, pattern As %String, escape As %String(MAXLEN=1) = "", caseInsensitive As %Boolean = {$$$YES}, cacheToPPG As %Boolean = {$$$NO}) As %Boolean [ SqlProc ]
+{
 	if (pattern = "") $$$ThrowStatus($$$ERROR($$$InvalidArgument))
 	if caseInsensitive set pattern = $zcvt(pattern, "L")
 	
@@ -146,28 +134,18 @@ If <var>cacheToPPG</var> is 1 then a process-private global is used for caching 
 	}
 	
 	quit 'negative
-]]></Implementation>
-</Method>
+}
 
-<Method name="endsWithEscape">
-<ClassMethod>1</ClassMethod>
-<FormalSpec>str:%String,escape:%String</FormalSpec>
-<Private>1</Private>
-<ReturnType>%Boolean</ReturnType>
-<Implementation><![CDATA[
+ClassMethod endsWithEscape(str As %String, escape As %String) As %Boolean [ Private ]
+{
 	set escape = $extract(escape, 1)
 	if (escape = "") || (str '[ escape) quit $$$NO
 	
 	quit ($extract($replace(str, escape_escape, ""), *) = escape)
-]]></Implementation>
-</Method>
+}
 
-<Method name="removeEscape">
-<ClassMethod>1</ClassMethod>
-<FormalSpec>str:%String,escape:%String=""</FormalSpec>
-<Private>1</Private>
-<ReturnType>%String</ReturnType>
-<Implementation><![CDATA[
+ClassMethod removeEscape(str As %String, escape As %String = "") As %String [ Private ]
+{
 	set escape = $extract(escape, 1)
 	if (escape = "") || (str '[ escape) quit str
 	
@@ -182,19 +160,13 @@ If <var>cacheToPPG</var> is 1 then a process-private global is used for caching 
 	}
 	
 	quit result
-]]></Implementation>
-</Method>
+}
 
-<Method name="findInStream">
-<Description>
-Analogous to ##class(%Stream.Object).FindAt(-1, ...)
-Pattern argument supports underscore that matches any single character.
-Escape argument can contain a character which is used to escape underscores within the pattern.</Description>
-<ClassMethod>1</ClassMethod>
-<FormalSpec><![CDATA[stream:%Stream.Object,pattern:%String,escape:%String(MAXLEN=1)="",&tmpstr:%String="",caseInsensitive:%Boolean=$$$NO,cacheToPPG:%Boolean=$$$NO]]></FormalSpec>
-<Private>1</Private>
-<ReturnType>%Integer</ReturnType>
-<Implementation><![CDATA[
+/// Analogous to ##class(%Stream.Object).FindAt(-1, ...)
+/// Pattern argument supports underscore that matches any single character.
+/// Escape argument can contain a character which is used to escape underscores within the pattern.
+ClassMethod findInStream(stream As %Stream.Object, pattern As %String, escape As %String(MAXLEN=1) = "", ByRef tmpstr As %String = "", caseInsensitive As %Boolean = {$$$NO}, cacheToPPG As %Boolean = {$$$NO}) As %Integer [ Private ]
+{
 	if caseInsensitive set pattern = $zcvt(pattern, "L")
 	
 	set escape = $extract(escape, 1)
@@ -240,20 +212,14 @@ Escape argument can contain a character which is used to escape underscores with
 	{
 		quit -1
 	}
-]]></Implementation>
-</Method>
+}
 
-<Method name="find">
-<Description>
-Same as $find() plus support for patterns containing underscore that matches any single character.
-If substringOrPattern is found, this method returns the integer position of the first character following substringOrPattern.
-If substringOrPattern is not found then a value of 0 is returned.
-Escape argument can contain a character which is used to escape underscores within substringOrPattern.</Description>
-<ClassMethod>1</ClassMethod>
-<FormalSpec>str:%String,substringOrPattern:%String,position:%Integer=1,escape:%String(MAXLEN=1)="",cacheToPPG:%Boolean=$$$NO</FormalSpec>
-<Private>1</Private>
-<ReturnType>%Integer</ReturnType>
-<Implementation><![CDATA[
+/// Same as $find() plus support for patterns containing underscore that matches any single character.
+/// If substringOrPattern is found, this method returns the integer position of the first character following substringOrPattern.
+/// If substringOrPattern is not found then a value of 0 is returned.
+/// Escape argument can contain a character which is used to escape underscores within substringOrPattern.
+ClassMethod find(str As %String, substringOrPattern As %String, position As %Integer = 1, escape As %String(MAXLEN=1) = "", cacheToPPG As %Boolean = {$$$NO}) As %Integer [ Private ]
+{
 	if (position > $length(str)) $$$ThrowStatus($$$ERROR($$$GeneralError, "Invalid position"))
 	
 	set escape = $extract(escape, 1)
@@ -319,14 +285,10 @@ Escape argument can contain a character which is used to escape underscores with
 	}
 	
 	quit pos
-]]></Implementation>
-</Method>
+}
 
-<Method name="findParseInternal">
-<ClassMethod>1</ClassMethod>
-<FormalSpec>substringOrPattern:%String,escape:%String(MAXLEN=1),*firstNonEmptyPart:%String,*firstNonEmptyPartNum:%Integer,*pattern:%String</FormalSpec>
-<Private>1</Private>
-<Implementation><![CDATA[
+ClassMethod findParseInternal(substringOrPattern As %String, escape As %String(MAXLEN=1), Output firstNonEmptyPart As %String, Output firstNonEmptyPartNum As %Integer, Output pattern As %String) [ Private ]
+{
 	set firstNonEmptyPartNum = 0
 	set firstNonEmptyPart = ""
 	set pattern = ""
@@ -383,7 +345,7 @@ Escape argument can contain a character which is used to escape underscores with
 		if (i > 1) set pattern = pattern _ "1E"
 		if (item '= "") set pattern = pattern _ "1""" _ $replace(item, """", """""") _ """"
 	}
-]]></Implementation>
-</Method>
-</Class>
-</Export>
+}
+
+}
+

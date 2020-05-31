@@ -1,20 +1,13 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Export generator="Cache" version="25">
-<Class name="iscru.util.MsgFilterAssistant">
-<Description>
-SQL query construction and execution for the Ensemble Message Viewer.
-Added support for stream Like/NotLike operators.
-Need to set ^EnsPortal.Settings("MessageViewer","AssistantClass") = "iscru.util.MsgFilterAssistant" in order to use this class for the Message Viewer.
-User should have a permission to run iscru_util.FunctionSet_streamLike stored procedure.</Description>
-<Super>EnsPortal.MsgFilter.Assistant</Super>
-<TimeCreated>65531,7911.211216</TimeCreated>
+/// SQL query construction and execution for the Ensemble Message Viewer.
+/// Added support for stream Like/NotLike operators.
+/// Need to set ^EnsPortal.Settings("MessageViewer","AssistantClass") = "iscru.util.MsgFilterAssistant" in order to use this class for the Message Viewer.
+/// User should have a permission to run iscru_util.FunctionSet_streamLike stored procedure.
+Class iscru.util.MsgFilterAssistant Extends EnsPortal.MsgFilter.Assistant
+{
 
-<Method name="addSQLTerms">
-<Description>
-Overridden to support Like/NotLike operators for streams.</Description>
-<FormalSpec><![CDATA[&aSelect,&aFrom,*xWhere,level=1,tNode="1",*pAllowEmptyWhere:%Boolean,pBitmapIndexUsed:%Boolean=0]]></FormalSpec>
-<ReturnType>%Integer</ReturnType>
-<Implementation><![CDATA[
+/// Overridden to support Like/NotLike operators for streams.
+Method addSQLTerms(ByRef aSelect, ByRef aFrom, Output xWhere, level = 1, tNode = "1", Output pAllowEmptyWhere As %Boolean, pBitmapIndexUsed As %Boolean = 0) As %Integer
+{
 	set xWhere = ""
 	set pAllowEmptyWhere = $$$NO
 	
@@ -106,11 +99,8 @@ Overridden to support Like/NotLike operators for streams.</Description>
 	if result set @("..Tree("_tNode_",""sqldone"")") = result
 
 	quit result
-]]></Implementation>
-</Method>
+}
 
-<UDLText name="T">
-<Content><![CDATA[
 /* 
 A "quick and dirty" proof-of-concept implementation.
 
@@ -143,7 +133,5 @@ ClassMethod GetSQLCondition(
 	}
 }
 */
-]]></Content>
-</UDLText>
-</Class>
-</Export>
+}
+
