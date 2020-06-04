@@ -22,8 +22,8 @@
 /// Note that all of the above manipulations are performed while holding a physical (exclusive) lock for the resource ID.
 /// Hence using the operation with PoolSize greater than 1 should be fine.<p/>
 /// 
-/// If a production deals with several types of resources (e.g. patients and care providers) 
-/// then several business operations of this class should be configured within a production.
+/// If a production deals with several types of resources (e.g. patients, care providers, devices, etc)
+/// then several business operations of this class should be configured within a production in order to avoid intersection of resource IDs.
 Class iscru.interop.LockUnlockResourceOperation Extends Ens.BusinessOperation
 {
 
