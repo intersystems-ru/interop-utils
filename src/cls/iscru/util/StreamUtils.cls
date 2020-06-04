@@ -2,7 +2,7 @@
 Class iscru.util.StreamUtils [ Abstract ]
 {
 
-/// Process-private global where parsed patterns get cached to (if requested)
+/// Process-private global that is used by streamLike() method to cache parsed patterns
 Parameter ppgROOT = "^||iscru.util.StreamUtils";
 
 /// Tests if the given stream's content satisfies a SQL Like comparison with the given </var>pattern</var> string.

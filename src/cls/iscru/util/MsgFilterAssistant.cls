@@ -1,8 +1,7 @@
-/// SQL query construction and execution for the Ensemble Message Viewer.
-/// Added support for stream Like/NotLike operators.
-/// Need to set ^EnsPortal.Settings("MessageViewer","AssistantClass") = "iscru.util.MsgFilterAssistant" in order to use this class for the Message Viewer.
+/// SQL query construction and execution for the Ensemble Message Viewer with support for stream Like/NotLike operators.
+/// Installation: set ^EnsPortal.Settings("MessageViewer","AssistantClass") = "iscru.util.MsgFilterAssistant" in order to use this class for the Message Viewer.
 /// User should have a permission to run iscru_util.FunctionSet_streamLike stored procedure.
-Class iscru.util.MsgFilterAssistant Extends EnsPortal.MsgFilter.Assistant
+Class iscru.util.MsgFilterAssistant Extends EnsPortal.MsgFilter.Assistant [ DependsOn = iscru.util.FunctionSet ]
 {
 
 /// Overridden to support Like/NotLike operators for streams.
