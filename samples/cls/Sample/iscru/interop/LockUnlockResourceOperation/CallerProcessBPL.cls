@@ -5,9 +5,11 @@
 /// (For a non-BPL process setting PoolSize=1 and using only sync calls within the process would guarantee FIFO "globally" but would also significantly limit scalability.)<p/>
 /// 
 /// Solution demonstrated by this class: 1) acquire a logical lock for the resource ID retrieved from the request message, 
-/// 2) execute business logic, 3) release the lock once finished.</p>
+/// 2) execute business logic, 3) release the lock once finished. 1) and 2) are calls to iscru.interop.LockUnlockResourceOperation.
+/// That class takes care of queueing up process instances that request resource lock.
+/// Due to "deferred response" technique there is no long-term job/db locks involved.</p>
 /// 
-/// Note that the lock should be eventually released regardless of any exceptions thrown, so
+/// Since the logical lock should be eventually released regardless of any exceptions thrown,
 /// &lt;scope&gt;, &lt;faulthandlers&gt; and &lt;catchall&gt; elements have to be employed.
 Class Sample.iscru.interop.LockUnlockResourceOperation.CallerProcessBPL Extends Ens.BusinessProcessBPL
 {
