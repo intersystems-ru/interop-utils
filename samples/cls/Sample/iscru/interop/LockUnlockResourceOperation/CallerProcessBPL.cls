@@ -1,34 +1,51 @@
-/// Sample BPL-based business process intended to demonstrate an approach similar to "Message Groups" concept found in other messaging engines.
+/// Sample BPL-based business process intended to demonstrate an approach similar to "Message Groups" concept found in other messaging engines.<p/>
 /// 
-/// Use case: consider a business process receiving messages related to resources of a certain type.
-/// It needs to guarantee serial processing of messages in the scope of each particular resource, e.g. serial processing of messages related to a patient, while sustaining high-volume message load.
+/// Use case: consider a business process that receives messages related to resources of a certain type.
+/// The process needs to guarantee serial processing of messages in the scope of each particular resource, 
+/// e.g. serial processing of messages related to a patient, while sustaining high-volume message load.
 /// (For a non-BPL process setting PoolSize=1 and using only sync calls within the process would guarantee FIFO "globally" but would also significantly limit scalability.)<p/>
 /// 
-/// Solution demonstrated by this class: 1) acquire a logical lock for the resource ID retrieved from the request message, 
-/// 2) execute business logic, 3) release the lock once finished. 1) and 2) are calls to iscru.interop.LockUnlockResourceOperation.
-/// That class takes care of queueing up process instances that request resource lock.
-/// Due to "deferred response" technique there is no long-term job/db locks involved.</p>
+/// Solution demonstrated by this class performs the following steps: <ul><li>first acquire a logical lock for the resource ID retrieved from the request message,</li>
+/// <li>execute business logic,</li><li> once finished, release the lock.</li></ul> 
+/// First and last steps are calls to <class>iscru.interop.LockUnlockResourceOperation</class>.
+/// That class takes care of queueing up process instances that request resource lock simultaneously. 
+/// Due to "deferred response" technique there is no long-term job/db blocking involved.<p/>
 /// 
-/// Since the logical lock should be eventually released regardless of any exceptions thrown,
+/// Since the logical lock should be eventually released regardless of any exception thrown,
 /// &lt;scope&gt;, &lt;faulthandlers&gt; and &lt;catchall&gt; elements have to be employed.
 Class Sample.iscru.interop.LockUnlockResourceOperation.CallerProcessBPL Extends Ens.BusinessProcessBPL
 {
 
-Property target As Ens.DataType.ConfigName;
+Property lockUnlockOperation As Ens.DataType.ConfigName;
 
-Parameter SETTINGS = "target:Basic";
+Parameter SETTINGS = "lockUnlockOperation:Basic";
+
+/// do ##class(Sample.iscru.interop.LockUnlockResourceOperation.CallerProcessBPL).test()
+ClassMethod test(processName As %String = {$classname()}, resourceId As %String = {$lb("abc", 123)}, count As %Integer = 5)
+{
+	for i = 1:1:count
+	{
+		#dim sc As %Status = ##class(iscru.util.EnsUtils).sendRequestFromService(processName, ##class(Ens.StringContainer).%New(resourceId))
+		if $$$ISERR(sc) write $System.Status.GetErrorText(sc),!
+	}
+}
 
 XData BPL [ XMLNamespace = "http://www.intersystems.com/bpl" ]
 {
 <process language='objectscript' request='Ens.StringContainer' response='Ens.Response'>
 <context>
 <property name='lastError' type='%Library.Status' initialexpression='$$$OK'/>
+<property name='currentResourceId' type='%Library.String'/>
 </context>
 <sequence>
-<call name="lockCall" target="@..%Process.target" async="0">
+<assign property='context.currentResourceId' value='request.StringValue'>
+<annotation>Retrieve resource ID from the request and store it in the process context</annotation>
+</assign>
+
+<call name="lockCall" target="@..%Process.lockUnlockOperation" async="0">
 <annotation>Resource lock should be acquired as early as possible to ensure correct ordering of messages related to the resource</annotation>
 <request type="Ens.StringContainer">
-<assign property="callrequest.StringValue" value='"+" _ request.StringValue'/>
+<assign property="callrequest.StringValue" value='"+" _ context.currentResourceId'/>
 </request>
 <response type="Ens.Response"/>
 </call>
@@ -60,9 +77,9 @@ XData BPL [ XMLNamespace = "http://www.intersystems.com/bpl" ]
 
 <scope>
 <annotation>Unlock the resource before re-throwing exception (if any)</annotation>
-<call name="unlockCall" target="@..%Process.target" async="0">
+<call name="unlockCall" target="@..%Process.lockUnlockOperation" async="0">
 <request type="Ens.StringContainer">
-<assign property="callrequest.StringValue" value='"-" _ request.StringValue'/>
+<assign property="callrequest.StringValue" value='"-" _ context.currentResourceId'/>
 </request>
 <response type="Ens.Response"/>
 </call>
@@ -83,17 +100,12 @@ XData BPL [ XMLNamespace = "http://www.intersystems.com/bpl" ]
 </process>
 }
 
-ClassMethod test(process As %String = {$classname()})
-{
-	for i = 1:1:5 { set sc = ##class(isc.util.EnsUtils).invokeHostAsync(process, ##class(Ens.StringContainer).%New($lb("abc", 123)))  if (sc '= 1) write $System.Status.GetErrorText(sc),! }
-}
-
 Storage Default
 {
 <Data name="CallerProcessBPLDefaultData">
 <Subscript>"CallerProcessBPL"</Subscript>
 <Value name="1">
-<Value>target</Value>
+<Value>lockUnlockOperation</Value>
 </Value>
 </Data>
 <DefaultData>CallerProcessBPLDefaultData</DefaultData>
