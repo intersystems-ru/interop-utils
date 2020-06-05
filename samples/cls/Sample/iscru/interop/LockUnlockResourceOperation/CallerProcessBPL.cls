@@ -81,7 +81,6 @@ XData BPL [ XMLNamespace = "http://www.intersystems.com/bpl" ]
 <request type="Ens.StringContainer">
 <assign property="callrequest.StringValue" value='"-" _ context.currentResourceId'/>
 </request>
-<response type="Ens.Response"/>
 </call>
 <faulthandlers>
 <catchall>
