@@ -81,8 +81,8 @@ Method addSQLTerms(ByRef aSelect, ByRef aFrom, Output xWhere, level = 1, tNode =
 			if ("%%" = $extract(tVal, *-2, *-1))
 			{
 				//set tVal = "'" _ $extract(tVal, 1, *-3) _ "' ESCAPE '" _ $extract(tVal, *) _ "'"
-				set tVal = $extract(tVal, 1, *-3)
 				set escape = $extract(tVal, *)
+				set tVal = $extract(tVal, 1, *-3)
 			}
 
 			set tVal = "'" _ $replace(tVal, "'", "''") _ "'"
