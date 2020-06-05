@@ -112,10 +112,11 @@ Method customOnComplete(request As %Library.Persistent, ByRef response As %Libra
 	quit $$$OK
 }
 
-/// This method is called when an error response is received OR there is an "internal" exception in OnRequest() or OnResponse().
+/// This method is called when an error response is received OR there is an "internal" exception, e.g. in OnRequest() or OnResponse().
+/// In the latter case <var>callrequest</var> is null.
 /// Returning the same error will cause the BusinessProcess to set its status to error and close down - without executing OnComplete().
 /// In case of error response returning $$$OK from this method causes the BusinessProcess to recover from this error.
-/// Note thet in case of an internal exception (i.e. empty callrequest) returning $$$OK from this method would hang the process: response would be never sent back to the caller.
+/// Note thet in case of an internal exception returning $$$OK from this method would hang the process: response would be never sent back to the caller.
 Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
 {
 	$$$TRACE("OnError: " _ $$$StatusDisplayString(pErrorStatus) _ "; $isObject(callrequest)=" _ $isObject($get(callrequest)))
@@ -144,7 +145,7 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 }
 
 /// Called when all the Async responses are received, or timeout has occurred.
-/// Not called if an error has not been swallowed by OnError().
+/// Not called if there's an error that has not been swallowed by OnError().
 Method OnComplete(request As %Library.Persistent, ByRef response As %Library.Persistent) As %Status
 {
 	$$$TRACE("OnComplete")
