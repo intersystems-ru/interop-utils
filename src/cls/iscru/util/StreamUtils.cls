@@ -12,7 +12,8 @@ Parameter ppgROOT = "^||iscru.util.StreamUtils";
 /// If <var>cacheToPPG</var> is 1 then a process-private global is used for caching parsed patterns; this is useful when the same pattern is applied many times, e.g. WHERE clause of a SQL query.
 ClassMethod streamLike(streamRefOrOid As %Stream.Object, pattern As %String, escape As %String(MAXLEN=1) = "", caseInsensitive As %Boolean = {$$$YES}, cacheToPPG As %Boolean = {$$$NO}) As %Boolean [ SqlProc ]
 {
-	if (pattern = "") $$$ThrowStatus($$$ERROR($$$InvalidArgument))
+	if (pattern = "") quit $$$NO // null pattern --> false
+	
 	if caseInsensitive set pattern = $zcvt(pattern, "L")
 	
 	set escape = $extract(escape, 1)
@@ -34,6 +35,9 @@ ClassMethod streamLike(streamRefOrOid As %Stream.Object, pattern As %String, esc
 	{
 		do stream.Rewind()
 	}
+	
+	// empty string pattern corresponds to an empty stream
+	if (pattern = $c(0)) quit (stream.Size = 0)
 
 	#dim patternPartsList As %List = ""
 	if cacheToPPG && $data(@..#ppgROOT@(pattern, "\" _ escape))
@@ -120,14 +124,14 @@ ClassMethod streamLike(streamRefOrOid As %Stream.Object, pattern As %String, esc
 			}
 			
 			set currentPos = currentPos + pos - 1 + len
-			
-			if (i = patternPartsCount) && (currentPos < (stream.Size + 1))
-			{
-				// if we are here, then the pattern ends with something other than %
-				// and there are extra characters in the stream after the last piece of the pattern
-				set negative = $$$YES
-				quit
-			}
+		}
+		
+		if (i = patternPartsCount) && (currentPos < (stream.Size + 1))
+		{
+			// if we are here, then the pattern ends with something other than %
+			// and there are extra characters in the stream after the last piece of the pattern
+			set negative = $$$YES
+			quit
 		}
 		
 		//w "currentPos=" _ currentPos,!
@@ -347,5 +351,13 @@ ClassMethod findParseInternal(substringOrPattern As %String, escape As %String(M
 	}
 }
 
+/*
+/// d ##class(iscru.util.StreamUtils).test()
+ClassMethod test(arg As %String)
+{
+	&sql(select count(1) into :cnt from isc_esb_msg.SoapClientRequest where iscru_util.FunctionSet_streamLike(body, :arg) = 1)
+	write "cnt=" _ $get(cnt) _ ";SQLCODE=" _ $get(SQLCODE) _ "; %msg=" _ $get(%msg),!
+}
+*/
 }
 
