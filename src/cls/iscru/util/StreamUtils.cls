@@ -95,7 +95,7 @@ ClassMethod streamLike(streamRefOrOid As %Stream.Object, pattern As %String, esc
 	{
 		set i = i + 1
 		
-		// the first character of the pattern is %, or there are repeating %
+		// the first/last character of the pattern is %, or there are repeating %
 		if (subPattern = "") continue
 		
 		#dim len As %Integer = $length(..removeEscape(subPattern, escape)) 
@@ -112,30 +112,40 @@ ClassMethod streamLike(streamRefOrOid As %Stream.Object, pattern As %String, esc
 			}
 			
 			set currentPos = len + 1
-		}
-		else
-		{
-			#dim tmpstr As %String
-			#dim pos As %Integer = ..findInStream(stream, subPattern, escape, .tmpstr, caseInsensitive, cacheToPPG)
-			if (pos = -1)
+			
+			if (patternPartsCount = 1) && (currentPos < (stream.Size + 1))
 			{
+				// if we are here, then the pattern is a one piece pattern, i.e. no % at all
+				// and there are some extra characters in the stream after the pattern
 				set negative = $$$YES
 				quit
 			}
-			
-			set currentPos = currentPos + pos - 1 + len
 		}
-		
-		if (i = patternPartsCount) && (currentPos < (stream.Size + 1))
+		else
 		{
-			// if we are here, then the pattern ends with something other than %
-			// and there are extra characters in the stream after the last piece of the pattern
-			set negative = $$$YES
-			quit
+			do
+			{
+				#dim tmpstr As %String
+				#dim pos As %Integer = ..findInStream(stream, subPattern, escape, .tmpstr, caseInsensitive, cacheToPPG)
+				if (pos = -1)
+				{
+					set negative = $$$YES
+					quit
+				}
+			
+				set currentPos = currentPos + pos - 1 + len
+				
+				// if this is the last piece of the pattern, then try to find the subpattern at the end of the stream
+				// otherwise proceed to the next piece of the pattern
+
+			} while (i = patternPartsCount) && (currentPos < (stream.Size + 1))
+			
+			if negative quit
 		}
 		
 		//w "currentPos=" _ currentPos,!
-	}
+		
+	} // while $listnext
 	
 	quit 'negative
 }
