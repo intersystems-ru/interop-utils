@@ -202,7 +202,7 @@ ClassMethod createStream(edgesStr As %String, stuffingStringCount As %Integer(MI
 /// We assume that <var>list</var> contains the following items:
 ///   edgesStr*, stuffingStringCount*, pattern, escape char, case insensitive flag, expected result<br/>
 /// * - edgesStr and stuffingStringCount are arguments for ..createStream() method.
-ClassMethod getResultAndExpected(cacheToPPG As %Boolean, list As %List, Output result As %Boolean, expected As %Boolean) [ Private ]
+ClassMethod getResultAndExpected(cacheToPPG As %Boolean, list As %List, Output result As %Boolean, Output expected As %Boolean) [ Private ]
 {
 	#dim stream As %Stream.Object = ..createStream($list(list, 1), $list(list, 2))
 	#dim pattern As %String = $list(list, 3)
