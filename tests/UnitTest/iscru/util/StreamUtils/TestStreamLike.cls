@@ -1,69 +1,103 @@
 Class UnitTest.iscru.util.StreamUtils.TestStreamLike Extends %UnitTest.TestCase
 {
 
+/// Name of the persistent class for testing streamLike stored procedure
+Parameter TEMPCLASSNAME = {..%ClassName(1) _ ".TempClass"};
+
+Method OnBeforeAllTests() As %Status
+{
+	do ..dropTempClass(..#TEMPCLASSNAME)
+	
+	// create and compile a persistent class with just one stream property
+	quit ..createTempClass(..#TEMPCLASSNAME)
+}
+
+Method OnAfterAllTests() As %Status
+{
+	quit ..dropTempClass(..#TEMPCLASSNAME)
+}
+
 Method TestWithoutPPGCache()
 {
-	do ..internal($$$NO)
+	do ..internal($$$NO, $$$NO)
 }
 
 Method TestWithPPGCache()
 {
-	do ..internal($$$YES)
+	do ..internal($$$YES, $$$NO)
 }
 
-Method internal(cacheToPPG As %Boolean) [ Private ]
+Method TestStoredProcWithoutPPGCache()
 {
-	// temp global name
-	#dim global As %String = "^||" _ $classname()
+	do ..internal($$$NO, $$$YES)
+}
+
+Method TestStoredProcWithPPGCache()
+{
+	do ..internal($$$YES, $$$YES)
+}
+
+Method internal(cacheToPPG As %Boolean, testStoredProc As %Boolean) [ Private ]
+{
+	if testStoredProc && '$$$comClassDefined(..#TEMPCLASSNAME)
+	{
+		$$$ThrowStatus($$$ERROR($$$GeneralError, "Persistent class " _ ..#TEMPCLASSNAME _ " not compiled"))
+	}
 	
-	do ..populateGlobal(global)
-	
-	// now each node of the global contains a list:
+	// populate temp global, assuming each node has a list of items:
 	//   edgesStr*, stuffingStringCount*, pattern, escape char, case insensitive flag, expected result
 	// * - edgesStr and stuffingStringCount are arguments for ..createStream() method
+	#dim globalName As %String = ..populateGlobal()
 
-	// loop through the items and test streamLike()
-	for i = 1:1:@global
+	// loop through the nodes and test streamLike() method or stored procedure (testStoredProc=1)
+	for i = 1:1:@globalName
 	{
-		#dim list As %List = @global@(i)
+		#dim list As %List = @globalName@(i)
 		#dim result As %Boolean
 		#dim expected As %Boolean
-		do ..getResultAndExpected(cacheToPPG, list, .result, .expected)
+		do ..doTest(cacheToPPG, testStoredProc, ..#TEMPCLASSNAME, list, .result, .expected)
 		
 		do $$$AssertEquals(result, expected, expected _ " = " _ result)
 	}
 	
-	kill @global
+	kill @globalName
 }
 
-/// do ##class(UnitTest.iscru.util.StreamUtils.TestStreamLike).debugTest(0)
-ClassMethod debugTest(cacheToPPG As %Boolean)
+/// do ##class(UnitTest.iscru.util.StreamUtils.TestStreamLike).debugTest(0, 0)
+ClassMethod debugTest(cacheToPPG As %Boolean, testStoredProc As %Boolean)
 {
-	// temp global name
-	#dim global As %String = "^||" _ $classname()
-	
-	do ..populateGlobal(global)
-	
-	for i = 1:1:@global
+	if testStoredProc
 	{
-		#dim list As %List = @global@(i)
+		do ..dropTempClass(..#TEMPCLASSNAME)
+		#dim sc As %Status = ..createTempClass(..#TEMPCLASSNAME)
+		$$$ThrowOnError(sc)
+	}
+	
+	#dim globalName As %String = ..populateGlobal()
+	
+	for i = 1:1:@globalName
+	{
+		#dim list As %List = @globalName@(i)
 		#dim result As %Boolean
 		#dim expected As %Boolean
-		do ..getResultAndExpected(cacheToPPG, list, .result, .expected)
+		do ..doTest(cacheToPPG, testStoredProc, ..#TEMPCLASSNAME, list, .result, .expected)
 		if (expected '= result) write expected _ " '= " _ result _ " / "  zw list
 	}
 	
-	kill @global
+	kill @globalName
+	if testStoredProc do ..dropTempClass(..#TEMPCLASSNAME)
 }
 
-ClassMethod populateGlobal(global As %String) [ Private ]
+/// Return name of the global.
+/// Each node of the global contains a list:
+///   edgesStr*, stuffingStringCount*, pattern, escape char, case insensitive flag, expected result
+/// * - edgesStr and stuffingStringCount are arguments for ..createStream() method.
+ClassMethod populateGlobal() As %String [ Private ]
 {
-	kill @global
+	#dim global As %String = "^||" _ $classname()
 	
-	// each node of the global will contain a list:
-	//   edgesStr*, stuffingStringCount*, pattern, escape char, case insensitive flag, expected result
-	// * - edgesStr and stuffingStringCount are arguments for ..createStream() method
-		
+	kill @global
+			
 	// I. test with no escape char, case insensitive
 	//  1) stream = "abcabc"
 	set @global@($i(@global)) = $lb("abcabc", 0, "ABCABC", "", $$$YES, $$$YES)
@@ -173,6 +207,8 @@ ClassMethod populateGlobal(global As %String) [ Private ]
 	set @global@($i(@global)) = $lb("abcabc", 0, $c(0), "", $$$YES, $$$NO)
 	set @global@($i(@global)) = $lb("abcabc", 0, $c(0), "~", $$$NO, $$$NO)
 	set @global@($i(@global)) = $lb("abcabc", 0, $c(0), "~", $$$YES, $$$NO)
+	
+	quit global
 }
 
 /// If <var>stuffingStringCount</var> equals zero then return <var>edgesStr</var> wrapped in a %Stream.TmpCharacter.
@@ -198,18 +234,88 @@ ClassMethod createStream(edgesStr As %String, stuffingStringCount As %Integer(MI
 	quit s
 }
 
-/// Call ##class(iscru.util.StreamUtils).streamLike() with data from <var>list</var>.
-/// We assume that <var>list</var> contains the following items:
+/// Using data from <var>list</var>: test either ##class(iscru.util.StreamUtils).streamLike() method
+/// or iscru_util.FunctionSet_streamLike stored procedure (if <var>testStoredProc</var> equals 1)
+/// assuming that <var>list</var> contains the following items:
 ///   edgesStr*, stuffingStringCount*, pattern, escape char, case insensitive flag, expected result<br/>
 /// * - edgesStr and stuffingStringCount are arguments for ..createStream() method.
-ClassMethod getResultAndExpected(cacheToPPG As %Boolean, list As %List, Output result As %Boolean, Output expected As %Boolean) [ Private ]
+ClassMethod doTest(cacheToPPG As %Boolean, testStoredProc As %Boolean, className As %String, list As %List, Output result As %Boolean, Output expected As %Boolean) [ Private ]
 {
 	#dim stream As %Stream.Object = ..createStream($list(list, 1), $list(list, 2))
 	#dim pattern As %String = $list(list, 3)
 	#dim escape As %String = $list(list, 4)
 	#dim caseInsens As %Boolean = +$list(list, 5)
 	set expected = +$list(list, 6)
-	set result = ##class(iscru.util.StreamUtils).streamLike(stream, pattern, escape, caseInsens, cacheToPPG)
+	
+	if 'testStoredProc
+	{
+		// test streamLike() method
+		set result = ##class(iscru.util.StreamUtils).streamLike(stream, pattern, escape, caseInsens, cacheToPPG)
+	}
+	else
+	{
+		// test iscru_util.FunctionSet_streamLike stored procedure
+
+		// truncate table and add just one row
+		do $classmethod(className, "%KillExtent")
+		#dim obj As %Persistent = $classmethod(className, "%New")
+		do obj.stream.CopyFrom(stream)
+		#dim sc As %Status = obj.%Save()
+		kill stream, obj
+		$$$ThrowOnError(sc)
+
+		// query table
+		#dim tableName As %String  = $$$comClassKeyGet(className, $$$cCLASSsqlschemaname) _ "." _ $$$comClassKeyGet(className, $$$cCLASSsqltablename)
+		#dim sql As %String = "SELECT 1 FROM " _ tableName _ " WHERE 1 = iscru_util.FunctionSet_streamLike(stream, ?, ?, ?, ?)"
+		#dim statement As %SQL.Statement = ##class(%SQL.Statement).%New()
+		set sc = statement.%Prepare(sql)
+		$$$ThrowOnError(sc)
+
+		#dim stResult As %SQL.StatementResult = statement.%Execute(pattern, escape, caseInsens, cacheToPPG)
+		#dim SQLCODE As %Integer = stResult.%SQLCODE
+		if (SQLCODE < 0) $$$ThrowStatus($$$ERROR($$$SQLError, SQLCODE, stResult.%Message))
+		
+		set result = stResult.%Next()
+	}
+}
+
+/// Create persistent class with the given name. Add just one stream property to the class.
+ClassMethod createTempClass(className As %String) [ Private ]
+{
+	#dim c As %Dictionary.ClassDefinition = ##class(%Dictionary.ClassDefinition).%New()
+	set c.Name = className
+	set c.ProcedureBlock = $$$YES
+	set c.Super = "%Persistent"
+
+	#dim p As %Dictionary.PropertyDefinition = ##class(%Dictionary.PropertyDefinition).%New()
+	set p.Name = "stream"
+	set p.Type = "%GlobalCharacterStream"
+	do c.Properties.Insert(p)
+
+	#dim sc As %Status = c.%Save()
+	if $$$ISERR(sc) quit sc
+	
+	set sc = $System.OBJ.Compile(c.Name)
+	if $$$ISERR(sc) quit sc
+	
+	quit $$$OK
+}
+
+/// Delete data and drop persistent class.
+ClassMethod dropTempClass(className As %String) [ Private ]
+{
+	try
+	{
+		// if there is a compiled class with the given name then kill data using %KillExtent() method
+		if $$$comClassDefined(className) do $classmethod(className, "%KillExtent")
+		
+		// drop the class
+		if ##class(%Dictionary.ClassDefinition).%ExistsId(className) do ##class(%Dictionary.ClassDefinition).%DeleteId(className)
+	}
+	catch
+	{}
+	
+	quit $$$OK
 }
 
 }
