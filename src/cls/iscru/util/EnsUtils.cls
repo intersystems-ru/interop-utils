@@ -22,7 +22,8 @@ ClassMethod getCurrentProduction() As Ens.Config.Production
 /// If <var>serviceName</var> is not specified then EnsLib.Testing.Service is used.
 /// In that case "Testing Enabled" production setting should be checked.
 /// Specify <var>sessionId</var> if the request should be sent in the scope of a particular session.
-ClassMethod sendRequestFromService(targetHostName As %String, message As %Persistent, serviceName As %String = "EnsLib.Testing.Service", sessionId As %Integer = "", description As %String = "") As %Status
+/// The actual session ID is recorded to <var>sessionId</var> once the message has been sent.
+ClassMethod sendRequestFromService(targetHostName As %String, message As %Persistent, serviceName As %String = "EnsLib.Testing.Service", ByRef sessionId As %Integer = "", description As %String = "") As %Status
 {
 	#dim prod As Ens.Config.Production = ..getCurrentProduction()
 	if '$isObject(prod) quit $$$ERROR($$$GeneralError, "No running production")
@@ -34,9 +35,11 @@ ClassMethod sendRequestFromService(targetHostName As %String, message As %Persis
 	#dim sc As %Status = ##class(Ens.Director).CreateBusinessService(serviceName, .service)
 	if $$$ISERR(sc) quit sc
 	
-	if (sessionId '= "") set service.%SessionId = sessionId
+	if ($get(sessionId) '= "") set service.%SessionId = sessionId
+	set sc = service.SendRequestAsync(targetHostName, message, description)
+	set sessionId = service.%SessionId
 	
-	quit service.SendRequestAsync(targetHostName, message, description)
+	quit sc
 }
 
 /// Find a business host by name and type.
