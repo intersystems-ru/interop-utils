@@ -139,7 +139,16 @@ Method unlock(resourceId As %String) As %Status
 		// check if the resource is currently locked by the current session
 		if ($get(@lockFlagNode) '= ..%SessionId)
 		{
-			set sc = $$$ERROR($$$GeneralError, "Resource " _ quotedResourceId _ " is currently locked by some other session: " _ $get(@lockFlagNode))
+			#dim errText As %String = "Resource " _ quotedResourceId
+			if ($get(@lockFlagNode) '= "")
+			{
+				set errText = errText _ " is currently locked by some other session: " _ $get(@lockFlagNode)
+			}
+			else
+			{
+				set errText = errText _ " has not been locked"
+			}
+			set sc = $$$ERROR($$$GeneralError, errText)
 			quit
 		}
 
