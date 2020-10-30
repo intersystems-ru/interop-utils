@@ -70,7 +70,10 @@ Method unlockResource() As %Status [ Private ]
 /// Async response received
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
-	$$$TRACE("OnResponse" _ "; pCompletionKey=" _ pCompletionKey)
+	$$$TRACE("OnResponse; pCompletionKey=" _ pCompletionKey _ "; ..%CurrentResponseHeader.IsError=" _ ..%CurrentResponseHeader.IsError)
+	
+	// errors are to be processed in OnError()
+	if ..%CurrentResponseHeader.IsError quit $$$OK
 	
 	if (pCompletionKey = ..#lockCOMPLETIONKEY)
 	{
@@ -116,7 +119,7 @@ Method customOnComplete(request As %Library.Persistent, ByRef response As %Libra
 /// In the latter case <var>callrequest</var> is null.
 /// Returning the same error will cause the BusinessProcess to set its status to error and close down - without executing OnComplete().
 /// In case of error response returning $$$OK from this method causes the BusinessProcess to recover from this error.
-/// Note thet in case of an internal exception returning $$$OK from this method would hang the process: response would be never sent back to the caller.
+/// Note that in case of an internal exception returning $$$OK from this method would hang the process: response would be never sent back to the caller.
 Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
 {
 	$$$TRACE("OnError: " _ $$$StatusDisplayString(pErrorStatus) _ "; $isObject(callrequest)=" _ $isObject($get(callrequest)))
